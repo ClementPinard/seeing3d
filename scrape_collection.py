@@ -1,31 +1,18 @@
 #!/usr/bin/env python
 
-import time
-import os
 import urllib.request as urllib2
 import requests
-import sys
 import argparse
 import io
-import shutil
-import random
 import json
 import zipfile
 from PIL import Image
 
-from bs4 import BeautifulSoup
 import path
 
 import termcolor as tc
 import util
 
-import sys  
-from lxml import html 
-
-
-
-# add &start=24 to start later
-#collection_url = "http://sketchup.google.com/3dwarehouse/cldetails?mid=48a9c4b69eee43a6dca9b79d6f9077ec"
 
 def download_thumb(mid, fname):
     """ save thumb of model id to fname """
