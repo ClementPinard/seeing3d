@@ -12,7 +12,7 @@ import path
 
 import termcolor as tc
 import util
-
+import subprocess
 
 def download_thumb(mid, fname):
     """ save thumb of model id to fname """
@@ -36,6 +36,40 @@ def get_model_ids(collection_url):
     for model in data:
         model_ids.append(model['id'])
     return model_ids
+
+def generate_sdf(mdir,mid):
+    config_string = """<?xml version="1.0"?>
+<model>
+  <name>"""+mid+"""</name>
+  <version>1.0</version>
+  <sdf version="1.5">model.sdf</sdf>
+</model>"""
+
+    sdf_string = """<?xml version="1.0" ?>
+<sdf version="1.5">
+  <model name=\""""+mid+"""\">
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://"""+mid+"""/model.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>"""
+    config_fname = mdir/'model.config'
+    sdf_fname = mdir/'model.sdf'
+    with open(config_fname, 'w') as f:
+        f.write(config_string)
+    with open(sdf_fname, 'w') as f:
+        f.write(sdf_string)
+
+
+    print(config_string)
+    print(sdf_string)
 
 def download_model(model_id, output_dir, get_thumb=True):
     base = "https://3dwarehouse.sketchup.com/warehouse/GetEntity"
@@ -61,9 +95,15 @@ def download_model(model_id, output_dir, get_thumb=True):
 
     with zipfile.ZipFile(fname,"r") as zip_ref:
         zip_ref.extractall(sub_output_dir)
+    dae_fname = sub_output_dir/'model.dae'
+    #cmd = ['meshlabserver', '-i', dae_fname, '-o', dae_fname, '-om', 'vt', 'wt']
+    #print(' '.join(cmd))
+    #subprocess.call(cmd)
+
+    generate_sdf(sub_output_dir,model_id)
 
     if get_thumb:
-        thumb_fname = sub_output_dir/'thumb.3dwarehouse.jpg'
+        thumb_fname = sub_output_dir/'thumb.jpg'
         download_thumb(model_id, thumb_fname)
     # upload/create json metadata
     json_fname = sub_output_dir/'metadata.json'
@@ -79,7 +119,6 @@ def download_query(query_url, existing_model_ids, output_dir):
             download_model(model_id, output_dir)
         else:
             print(tc.colored('%s is dupe, skipping'%model_id, 'red'))
-
 parser = argparse.ArgumentParser(description='scrape models from warehouse 3D')
 parser.add_argument('collection_id', nargs=1, help='URL of collection or query')
 parser.add_argument('--dest', '-d', help='Directory to save models')
@@ -88,7 +127,7 @@ parser.add_argument('--existing', '-e', help='json with existing model ids to av
 args = parser.parse_args()
 collection_id = args.collection_id[0]
 base =  "https://3dwarehouse.sketchup.com/warehouse/Search"
-params = '&'.join(['parentCollectionId='+collection_id, 'class=entity', 'startRow=1','endRow=300','%24I=true','li=false'])
+params = '&'.join(['parentCollectionId='+collection_id, 'class=entity', 'startRow=1','endRow=1000','%24I=true','li=false'])
 collection_url = '?'.join([base, params])
 print(tc.colored('Collection url:', 'green'), tc.colored(collection_url, 'white'))
 
@@ -100,14 +139,18 @@ else:
 print(tc.colored('output dir:', 'green'), tc.colored(output_dir, 'white'))
 if not output_dir.exists(): output_dir.mkdir()
 
-if not args.existing:
+if not args.existing and output_dir/'existing.json':
     args.existing = output_dir/'existing.json'
+else:
+    args.existing = path.path(args.existing)
 
-with open(args.existing) as f:
-    existing_model_mids = set(json.load(f))
+if args.existing.exists() :
+    with open(args.existing) as f:
+        existing_model_mids = set(json.load(f))
 
-print('%d existing models'%len(existing_model_mids))
-
+    print('%d existing models'%len(existing_model_mids))
+else:
+    existing_model_mids = set()   
 download_query(collection_url, existing_model_mids, output_dir)
 # update existing existing_model_mids
 model_ids = set(map(str, [d.basename() for d in output_dir.dirs()]))
